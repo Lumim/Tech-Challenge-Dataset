@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { fetchFinancialData } from '@/lib/api-client'
-import { ApiResponse, Position } from '@/types/api-types'
+import { ApiResponse, Position, RateData } from '@/types/api-types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -31,12 +31,13 @@ const positionsData: Position[] = [
 ]
 
 export default function FinancialDataViewer() {
-  const [pairs, setPairs] = useState('USDGBP,EURGBP,SEKGBP,DKKGBP')
-  const [startDate, setStartDate] = useState('20221101')
-  const [endDate, setEndDate] = useState('20241020')
+  const [pairs, setPairs] = useState('DKKUSD')
+  const [startDate, setStartDate] = useState('20241016')
+  const [endDate, setEndDate] = useState('20241110')
   const [data, setData] = useState<ApiResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [retryCount, setRetryCount] = useState(0)
 
   useEffect(() => {
     handleFetch()
@@ -45,6 +46,7 @@ export default function FinancialDataViewer() {
   async function handleFetch() {
     setLoading(true)
     setError(null)
+    setRetryCount(0)
     try {
       const result = await fetchFinancialData({
         pairs,
@@ -53,10 +55,24 @@ export default function FinancialDataViewer() {
       })
       setData(result)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch data')
+      if (err instanceof Error) {
+        if (err.message.includes('Rate limit exceeded')) {
+          setError(`${err.message} Retrying...`)
+          setRetryCount(prev => prev + 1)
+          setTimeout(handleFetch, 5000) // Retry after 5 seconds
+        } else {
+          setError(err.message)
+        }
+      } else {
+        setError('Failed to fetch data')
+      }
     } finally {
       setLoading(false)
     }
+  }
+
+  const getLatestRate = (rates: RateData[]): number => {
+    return rates[rates.length - 1].rate
   }
 
   return (
@@ -75,7 +91,7 @@ export default function FinancialDataViewer() {
                 id="pairs"
                 value={pairs}
                 onChange={(e) => setPairs(e.target.value)}
-                placeholder="USDGBP,EURGBP,SEKGBP,DKKGBP"
+                placeholder="DKKUSD"
               />
             </div>
             <div className="space-y-2">
@@ -113,6 +129,7 @@ export default function FinancialDataViewer() {
           {error && (
             <div className="text-red-500 text-sm mt-2">
               {error}
+              {retryCount > 0 && ` (Retry attempt: ${retryCount})`}
             </div>
           )}
 
@@ -123,16 +140,16 @@ export default function FinancialDataViewer() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Currency Pair</TableHead>
-                    <TableHead>Latest Price</TableHead>
-                    <TableHead>Latest Value</TableHead>
+                    <TableHead>Latest Rate</TableHead>
+                    <TableHead>Date Range</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {Object.entries(data.positions).map(([positionId, metrics]) => (
-                    <TableRow key={positionId}>
-                      <TableCell>{positionId}</TableCell>
-                      <TableCell>{metrics.Price[metrics.Price.length - 1].toFixed(8)}</TableCell>
-                      <TableCell>{metrics.Value[metrics.Value.length - 1].toFixed(8)}</TableCell>
+                  {Object.entries(data).map(([currencyPair, rates]) => (
+                    <TableRow key={currencyPair}>
+                      <TableCell>{currencyPair}</TableCell>
+                      <TableCell>{getLatestRate(rates).toFixed(6)}</TableCell>
+                      <TableCell>{`${rates[0].date} - ${rates[rates.length - 1].date}`}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
