@@ -5,6 +5,7 @@ import { fetchFxRates, fetchPrices, submitResult } from '@/lib/api-client';
 import { Position, Result, MetricValues, FxRate, Price } from '@/types/api-types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Console, timeEnd } from 'console';
 
 const START_DATE = '20241016';
 const END_DATE = '20241116';
@@ -203,7 +204,7 @@ function calculatePositionMetrics(
 
   dates.forEach((date, index) => {
     const currentDate = new Date(date);
-    const isOpen = currentDate >= openDate && currentDate < closeDate ? 1 : 0;
+    const isOpen = currentDate >= openDate && currentDate<= closeDate ? 1 : 0;
     const fxRate = fxRates[`${position.instrument_currency}${TARGET_CURRENCY}`].find(r => r.date === date)?.rate || 1;
     const price = prices.find(p => p.date === date)?.price || 0;
 
@@ -224,7 +225,7 @@ function calculatePositionMetrics(
       metrics.ReturnPerPeriodPercentage.push(0);
     }
   });
-
+  console.log(metrics);
   return metrics;
 }
 
@@ -258,7 +259,10 @@ function calculateBasketMetrics(positionMetrics: Record<string, MetricValues>): 
       basketMetrics.ReturnPerPeriodPercentage[i] = prevValue !== 0 ? basketMetrics.ReturnPerPeriod[i] / prevValue : 0;
     }
   }
-
+  console.group("Do this")
+  console.log(numDays)
+  console.warn(basketMetrics)
+  console.log(basketMetrics)
   return basketMetrics;
 }
 
@@ -288,7 +292,10 @@ export default function FinancialMetricsCalculator() {
         positions: { ...positionMetrics, dates },
         basket: { ...basketMetrics, dates },
       };
-      alert(result)
+      console.group("Do that on result")
+      console.log(basketMetrics)
+      console.warn(result.positions)
+      console.table(result)
       setResult(result);
       
     } catch (err) {
